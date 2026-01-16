@@ -1,0 +1,71 @@
+name: CI/CD - Build image and deploy to k3s (via control-node)
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/k8s-app-backend
+  NAMESPACE: default
+  DEPLOYMENT_NAME: backend
+  CONTAINER_NAME: backend
+  K8S_HOST: 46.224.36.151
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.vars.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image tag
+        id: vars
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "tag=sha-${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.tag }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Deploy via control-node (jump host)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CONTROL_HOST }}
+          username: ${{ secrets.CONTROL_USER }}
+          key: ${{ secrets.CONTROL_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            TAG="${{ needs.build.outputs.tag }}"
+            IMAGE="${{ env.IMAGE_NAME }}:${TAG}"
+
+            echo "Deploying ${IMAGE} to k8s-master (${{ env.K8S_HOST }})..."
+
+            ssh -o StrictHostKeyChecking=no deploy@${{ env.K8S_HOST }} \
+              "kubectl -n ${{ env.NAMESPACE }} set image deploy/${{ env.DEPLOYMENT_NAME }} ${{ env.CONTAINER_NAME }}=${IMAGE} && \
+               kubectl -n ${{ env.NAMESPACE }} rollout status deploy/${{ env.DEPLOYMENT_NAME }} --timeout=180s && \
+               kubectl -n ${{ env.NAMESPACE }} get pods -l app=backend -o wide"
+
