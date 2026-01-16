@@ -58,7 +58,7 @@ jobs:
           host: ${{ secrets.CONTROL_HOST }}
           username: ${{ secrets.CONTROL_USER }}
           key: ${{ secrets.CONTROL_SSH_KEY }}
-          port: 22
+          port: 443
           debug: true
           script: |
             set -euo pipefail
