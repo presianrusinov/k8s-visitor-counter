@@ -59,6 +59,7 @@ jobs:
           username: ${{ secrets.CONTROL_USER }}
           key: ${{ secrets.CONTROL_SSH_KEY }}
           port: 22
+          debug: true
           script: |
             set -euo pipefail
             TAG="${{ needs.build.outputs.tag }}"
@@ -71,4 +72,10 @@ jobs:
                kubectl -n ${{ env.NAMESPACE }} rollout status deploy/${{ env.DEPLOYMENT_NAME }} --timeout=180s && \
                kubectl -n ${{ env.NAMESPACE }} get pods -l app=backend -o wide && \
                kubectl -n ${{ env.NAMESPACE }} describe deploy ${{ env.DEPLOYMENT_NAME }} | grep -i image"
+         script: |
+           echo "CONTROL_HOST=${{ secrets.CONTROL_HOST }}"
+           echo "K8S_HOST=${{ env.K8S_HOST }}"
+           hostname
+           whoami
+           ssh -o StrictHostKeyChecking=no deploy@${{ env.K8S_HOST }} "kubectl -n default get deploy backend -o wide"
 
