@@ -1,0 +1,2 @@
+NAME         STATUS   ROLES                  AGE   VERSION        INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION       CONTAINER-RUNTIME
+k8s-master   Ready    control-plane,master   43d   v1.33.6+k3s1   46.224.36.151   <none>        Ubuntu 22.04.5 LTS   5.15.0-163-generic   containerd://2.1.5-k3s1.33

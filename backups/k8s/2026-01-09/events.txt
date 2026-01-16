@@ -1,0 +1,2 @@
+LAST SEEN   TYPE      REASON          OBJECT                           MESSAGE
+3m10s       Warning   ErrInitIssuer   clusterissuer/letsencrypt-prod   Error initializing issuer: Get "https://acme-v2.api.letsencrypt.org/directory": dial tcp: lookup acme-v2.api.letsencrypt.org on 10.43.0.10:53: no such host
