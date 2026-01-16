@@ -3,6 +3,7 @@ name: CI/CD - Build image and deploy to k3s (via control-node)
 on:
   push:
     branches: ["main"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -57,7 +58,7 @@ jobs:
           host: ${{ secrets.CONTROL_HOST }}
           username: ${{ secrets.CONTROL_USER }}
           key: ${{ secrets.CONTROL_SSH_KEY }}
-          port: ${{ secrets.CONTROL_PORT }}
+          port: 22
           script: |
             set -euo pipefail
             TAG="${{ needs.build.outputs.tag }}"
@@ -68,5 +69,6 @@ jobs:
             ssh -o StrictHostKeyChecking=no deploy@${{ env.K8S_HOST }} \
               "kubectl -n ${{ env.NAMESPACE }} set image deploy/${{ env.DEPLOYMENT_NAME }} ${{ env.CONTAINER_NAME }}=${IMAGE} && \
                kubectl -n ${{ env.NAMESPACE }} rollout status deploy/${{ env.DEPLOYMENT_NAME }} --timeout=180s && \
-               kubectl -n ${{ env.NAMESPACE }} get pods -l app=backend -o wide"
+               kubectl -n ${{ env.NAMESPACE }} get pods -l app=backend -o wide && \
+               kubectl -n ${{ env.NAMESPACE }} describe deploy ${{ env.DEPLOYMENT_NAME }} | grep -i image"
 
