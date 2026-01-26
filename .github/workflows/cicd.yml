@@ -1,4 +1,4 @@
-name: CI/CD - Build & Deploy to k3s via control-node
+name: CI/CD - Build & Deploy (self-hosted runner)
 
 on:
   push:
@@ -20,59 +20,38 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.vars.outputs.tag }}
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Login to GHCR
+      - name: Set tag
+        id: vars
+        run: echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GHCR_PAT }}
 
-      - name: Set image tag
-        id: vars
-        run: |
-          SHORT_SHA="${GITHUB_SHA::7}"
-          echo "tag=sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push image
+      - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: ./backend
           push: true
-          tags: |
-            ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.tag }}
+          tags: ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.tag }}
 
   deploy:
-    runs-on: ubuntu-latest
     needs: build
-
+    runs-on: [self-hosted, control-node]
     steps:
-      - name: Deploy from control-node (kubectl runs here)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.CONTROL_HOST }}
-          username: ${{ secrets.CONTROL_USER }}
-          key: ${{ secrets.CONTROL_SSH_KEY }}
-          port: 22
-          script: |
-            set -euo pipefail
+      - name: Deploy to k3s
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.build.outputs.tag }}"
+          IMAGE="${{ env.IMAGE_NAME }}:${TAG}"
 
-            # Sanity
-            hostname
-            whoami
-            kubectl version --client=true || true
-            kubectl get nodes
-
-            TAG="${{ needs.build.outputs.tag }}"
-            IMAGE="ghcr.io/${{ github.repository_owner }}/k8s-app-backend:${TAG}"
-
-            echo "Deploying ${IMAGE} to namespace=default deployment=backend"
-
-            kubectl -n default set image deploy/backend backend="${IMAGE}"
-            kubectl -n default rollout status deploy/backend --timeout=180s
-            kubectl -n default get pods -l app=backend -o wide
-            kubectl -n default describe deploy backend | grep -i image
+          echo "Deploying ${IMAGE}..."
+          kubectl -n "${{ env.NAMESPACE }}" set image "deploy/${{ env.DEPLOYMENT_NAME }}" "${{ env.CONTAINER_NAME }}=${IMAGE}"
+          kubectl -n "${{ env.NAMESPACE }}" rollout status "deploy/${{ env.DEPLOYMENT_NAME }}" --timeout=180s
+          kubectl -n "${{ env.NAMESPACE }}" get pods -l app=backend -o wide

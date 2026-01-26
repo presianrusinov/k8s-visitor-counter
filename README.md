@@ -1,28 +1,61 @@
-Visitor Counter – Kubernetes Demo Application
+isitor Counter on Kubernetes (k3s)
 
-This is a small demonstration project that deploys a simple Flask backend on a k3s Kubernetes cluster running in Hetzner Cloud. The application exposes a basic visit counter and is used to showcase the end-to-end workflow: writing a small service, containerizing it, publishing the image to GitHub Container Registry, and deploying it to Kubernetes using standard manifests.
+Live
+http://myk8s-presiyan.duckdns.org
 
-The application provides two endpoints:
+What this is
+This repo is a small “production-like” demo that runs a visitor counter API on a single-node Kubernetes cluster (k3s). The app is containerized, exposed through ingress-nginx, and automated with a simple CI pipeline that builds and pushes images to GitHub Container Registry (GHCR).
 
-/ – basic health/landing response
+The goal is to show a realistic end-to-end flow: code → container image → cluster rollout.
 
-/api/visits – returns a visit counter that increments on each request
+Architecture
+The backend runs as a Kubernetes Deployment in the default namespace.
+Traffic comes in through ingress-nginx and is routed to the backend Service.
+The public endpoint uses a hostname (DuckDNS) pointing to the server public IP.
 
-The application code and Dockerfile are located in the backend/ directory.
-The container image is built locally and pushed to GHCR as:
+Tech stack
+Kubernetes: k3s (single-node)
+Ingress: ingress-nginx
+TLS automation: cert-manager (if enabled on the cluster)
+Container registry: GHCR
+CI: GitHub Actions (build and push image)
+Deployment: kubectl rollout (currently run from a trusted machine with cluster access)
 
-ghcr.io/presianrusinov/k8s-app-backend:latest
+How to deploy (manual, stable)
+This is the simplest and most reliable way to deploy without dealing with SSH access from GitHub runners.
 
-Kubernetes manifests are stored in the manifests/ directory and include the Deployment, Service, and Ingress configuration. The Ingress exposes the service publicly through the NGINX Ingress Controller.
+1) Build happens in CI and produces an image tag like sha-abcdef1
+2) On your control node (or any machine that has kubectl access to the cluster), run:
+kubectl -n default set image deploy/backend backend=ghcr.io/presianrusinov/k8s-app-backend:sha-abcdef1
+kubectl -n default rollout status deploy/backend --timeout=180s
+kubectl -n default get pods -l app=backend -o wide
 
-Deployment is done with a simple:
+CI pipeline
+On every push to main, GitHub Actions builds the backend container and pushes it to GHCR.
+The image tag is based on the short commit SHA, for example:
+ghcr.io/presianrusinov/k8s-app-backend:sha-123abcd
 
-kubectl apply -f manifests/
+The workflow uses a registry token stored as a GitHub Actions secret:
+GHCR_PAT must have permission to write packages.
 
-The application is publicly accessible at:
+Backups
+Cluster manifests are periodically exported under backups/k8s/YYYY-MM-DD.
+This helps restore the current working state quickly if something gets changed by mistake.
 
-http://myk8s-presiyan.duckdns.org/
+Notes about access and secrets
+Kubernetes access (kubeconfig) and SSH keys are not stored in the repository.
+Secrets are stored in GitHub Actions Secrets and on the cluster where needed.
 
-http://myk8s-presiyan.duckdns.org/api/visits
+Troubleshooting
+If you get 404 when calling the server IP directly, but the Host header works, that is expected with ingress.
+Example:
+curl -i -H "Host: myk8s-presiyan.duckdns.org" http://46.224.36.151/api/visits
 
-The project’s purpose is to provide a clean, working example of a Kubernetes setup with a real containerized service, an external container registry, and a publicly reachable endpoint. Additional improvements such as GitHub Actions automation, TLS certificates, and extended components can be added later as needed.
+If the domain does not resolve, it is a DNS propagation or resolver issue, not the app.
+Check with:
+dig +short myk8s-presiyan.duckdns.org A
+
+Next steps (optional)
+Add a CD approach that does not rely on public SSH from GitHub-hosted runners.
+The clean options are either a self-hosted runner on the control node or a GitOps tool like Argo CD / Flux.
+
