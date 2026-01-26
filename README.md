@@ -1,19 +1,29 @@
-isitor Counter on Kubernetes (k3s)
+Visitor Counter on Kubernetes (k3s)
 
-Live
+1. How to access the app
+Public URL:
 http://myk8s-presiyan.duckdns.org
 
-What this is
+API endpoint:
+http://myk8s-presiyan.duckdns.org/api/visits
+
+Direct IP note (ingress needs Host header):
+If you call the server IP directly you may get 404 from nginx, because ingress routing is based on the Host header.
+Use:
+curl -i -H "Host: myk8s-presiyan.duckdns.org" http://46.224.36.151/api/visits
+
+
+2. What this is:
 This repo is a small “production-like” demo that runs a visitor counter API on a single-node Kubernetes cluster (k3s). The app is containerized, exposed through ingress-nginx, and automated with a simple CI pipeline that builds and pushes images to GitHub Container Registry (GHCR).
 
 The goal is to show a realistic end-to-end flow: code → container image → cluster rollout.
 
-Architecture
+3. Architecture
 The backend runs as a Kubernetes Deployment in the default namespace.
 Traffic comes in through ingress-nginx and is routed to the backend Service.
 The public endpoint uses a hostname (DuckDNS) pointing to the server public IP.
 
-Tech stack
+4. Tech stack
 Kubernetes: k3s (single-node)
 Ingress: ingress-nginx
 TLS automation: cert-manager (if enabled on the cluster)
@@ -21,7 +31,7 @@ Container registry: GHCR
 CI: GitHub Actions (build and push image)
 Deployment: kubectl rollout (currently run from a trusted machine with cluster access)
 
-How to deploy (manual, stable)
+5. How to deploy (manual, stable)
 This is the simplest and most reliable way to deploy without dealing with SSH access from GitHub runners.
 
 1) Build happens in CI and produces an image tag like sha-abcdef1
